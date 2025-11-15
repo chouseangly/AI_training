@@ -1,22 +1,25 @@
 import cv2
 import numpy as np
 import os
-import random
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 # Import MediaPipe for robust pose estimation
 import mediapipe as mp
+# Import joblib to save the model
+import joblib
 
 # Initialize MediaPipe Pose Model
 mp_pose = mp.solutions.pose
-# Use the Lite model for faster inference if necessary
 pose_model = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 # --- CONSTANTS AND CONFIGURATION ---
-DATA_DIR = 'classroom_videos/labeled_data'
-BEHAVIORS = ['Attentive', 'Inattentive', 'Talking']
-FRAME_SKIP = 5  # Process every 5th frame to speed up training
-KEYPOINT_DIMENSION = 33 * 3  # 33 keypoints (x, y, z) = 99 features per frame
+DATA_DIR = 'classroom_images/labeled_data'  # Directory for images
+
+# UPDATED: Added 'Sleeping' to the list
+BEHAVIORS = ['Attentive', 'Inattentive', 'Talking', 'Sleeping']
+
+# FRAME_SKIP is no longer needed
+KEYPOINT_DIMENSION = 33 * 3  # 33 keypoints (x, y, z) = 99 features
 
 
 # --- STAGE 1 & 2: FEATURE EXTRACTION (The Core Function) ---
@@ -24,9 +27,7 @@ KEYPOINT_DIMENSION = 33 * 3  # 33 keypoints (x, y, z) = 99 features per frame
 def get_pose_features(frame):
     """
     Uses the MediaPipe Pose model to extract a feature vector (pose keypoints).
-
-    Returns a flattened numpy array of (x, y, z) coordinates for all 33 body joints.
-    Returns None if no human is detected.
+    This function works perfectly on a single image (frame).
     """
     # Convert the BGR image to RGB
     image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -52,74 +53,58 @@ def get_pose_features(frame):
     return None
 
 
-def extract_features_from_video(video_path, behavior_index):
-    """Loads video, extracts pose features every N frames, and labels them."""
-
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error: Could not open video {video_path}")
-        return [], []
-
-    features_list = []
-    labels_list = []
-    frame_count = 0
-
-    print(f"-> Processing video: {os.path.basename(video_path)}...")
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        if frame_count % FRAME_SKIP == 0:
-            pose_features = get_pose_features(frame)
-
-            if pose_features is not None and len(pose_features) == KEYPOINT_DIMENSION:
-                features_list.append(pose_features)
-                labels_list.append(behavior_index)  # Use the numeric index as the label
-
-        frame_count += 1
-
-    cap.release()
-    print(f"   Extracted {len(features_list)} frames (features) successfully.")
-    return features_list, labels_list
-
-
 def load_and_prepare_data():
-    """Iterates through the data directory and extracts features from all videos."""
+    """
+    MODIFIED FUNCTION:
+    Iterates through the data directory, loads each IMAGE,
+    extracts pose features, and labels them.
+    """
 
     all_features = []
     all_labels = []
 
     if not os.path.isdir(DATA_DIR):
-        print(f"ERROR: Data directory '{DATA_DIR}' not found. Please create it and add videos.")
+        print(f"ERROR: Data directory '{DATA_DIR}' not found. Please create it and add images.")
         return np.array([]), np.array([])
+
+    # Define valid image extensions
+    image_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')
 
     # Iterate through all defined behaviors (subdirectories)
     for index, behavior in enumerate(BEHAVIORS):
         behavior_path = os.path.join(DATA_DIR, behavior)
         if os.path.isdir(behavior_path):
 
-            # Find all video files (.mp4, .mov, etc.)
-            video_files = [f for f in os.listdir(behavior_path) if f.lower().endswith(('.mp4', '.mov', '.avi'))]
+            # Find all image files
+            image_files = [f for f in os.listdir(behavior_path) if f.lower().endswith(image_extensions)]
 
-            print(f"\nFound {len(video_files)} videos for behavior: {behavior}")
+            print(f"\nFound {len(image_files)} images for behavior: {behavior}")
 
-            for video_name in video_files:
-                video_path = os.path.join(behavior_path, video_name)
+            for image_name in image_files:
+                image_path = os.path.join(behavior_path, image_name)
 
-                # Execute feature extraction for the video
-                features, labels = extract_features_from_video(video_path, index)
+                # Load the image
+                frame = cv2.imread(image_path)
 
-                all_features.extend(features)
-                all_labels.extend(labels)
+                if frame is None:
+                    print(f"   Warning: Could not read image {image_name}. Skipping.")
+                    continue
+
+                # Execute feature extraction for the single image
+                pose_features = get_pose_features(frame)
+
+                if pose_features is not None and len(pose_features) == KEYPOINT_DIMENSION:
+                    all_features.append(pose_features)
+                    all_labels.append(index)  # Use the numeric index as the label
+                else:
+                    print(f"   Warning: No pose detected in {image_name}. Skipping.")
 
     # Convert lists to numpy arrays
     X = np.array(all_features)
     y = np.array(all_labels)
 
     print(f"\n--- Data Preparation Complete ---")
-    print(f"Total Feature Vectors (Frames): {X.shape[0]}")
+    print(f"Total Feature Vectors (Images): {X.shape[0]}")
     print(f"Feature Dimension: {X.shape[1] if X.shape[0] > 0 else 0}")
 
     return X, y
@@ -128,7 +113,10 @@ def load_and_prepare_data():
 # --- STAGE 3 & 4: MODEL TRAINING AND EVALUATION ---
 
 def train_behavior_classifier(X, y):
-    """Trains a Random Forest classifier and prints the test accuracy."""
+    """
+    Trains a Random Forest classifier and prints the test accuracy.
+    (This function is unchanged)
+    """
 
     # 1. Split data
     X_train, X_test, y_train, y_test = train_test_split(
@@ -138,7 +126,6 @@ def train_behavior_classifier(X, y):
     print(f"\nTraining Model with {X_train.shape[0]} samples...")
 
     # 2. Initialize and Train the Model
-    # Random Forest is robust and works well on structured feature data like this
     model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
 
@@ -154,25 +141,25 @@ def train_behavior_classifier(X, y):
 
 
 if __name__ == '__main__':
-    print("--- Starting Student Behavior AI Model Workflow ---")
+    print("--- Starting Student Behavior AI Model Workflow (Image-Based) ---")
 
     # 1. LOAD AND PREPARE DATA (Feature Extraction)
     X_features, y_labels = load_and_prepare_data()
 
     if X_features.shape[0] == 0:
-        print("\n[STOPPED] No data was loaded. Please ensure your videos are in the correct directory structure:")
-        print(f"  {DATA_DIR}/Attentive/")
-        print(f"  {DATA_DIR}/Inattentive/")
-        print("Run `pip install ...` if you haven't already.")
+        print("\n[STOPPED] No data was loaded. Please ensure your images are in the correct directory structure:")
+        # Updated print message to show all 4 folders
+        print(f"  {DATA_DIR}/Attentive/image1.jpg")
+        print(f"  {DATA_DIR}/Inattentive/image2.jpg")
+        print(f"  {DATA_DIR}/Talking/image3.jpg")
+        print(f"  {DATA_DIR}/Sleeping/image4.jpg")
     else:
         # 2. TRAIN CLASSIFIER MODEL
         trained_model = train_behavior_classifier(X_features, y_labels)
 
         # 3. Deployment Prep (Save the model for later use)
-        # To use this model later, you would save it using joblib or pickle:
-        # import joblib
-        # joblib.dump(trained_model, 'student_behavior_model.pkl')
-        # print("\nModel saved as 'student_behavior_model.pkl'.")
-
-        # NOTE: After training, you would use this model to predict behavior
-        # on new, unseen, live video feeds.
+        # --- THIS IS NOW FIXED ---
+        # The code will now save the model file, fixing your EOFError.
+        joblib.dump(trained_model, 'student_behavior_model.pkl')
+        print("\nModel saved as 'student_behavior_model.pkl'.")
+        print("You can now run your 'run_live_detection.py' script.")
