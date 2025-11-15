@@ -13,10 +13,10 @@ mp_pose = mp.solutions.pose
 pose_model = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 # --- CONSTANTS AND CONFIGURATION ---
-DATA_DIR = 'classroom_images/labeled_data'  # Directory for images
+DATA_DIR = 'swimming_pool_images/labeled_data'  # Directory for images
 
 # UPDATED: Added 'Sleeping' to the list
-BEHAVIORS = ['Attentive', 'Inattentive', 'Talking', 'Sleeping']
+BEHAVIORS = ['drowning', 'normal', 'safe']
 
 # FRAME_SKIP is no longer needed
 KEYPOINT_DIMENSION = 33 * 3  # 33 keypoints (x, y, z) = 99 features
@@ -160,6 +160,6 @@ if __name__ == '__main__':
         # 3. Deployment Prep (Save the model for later use)
         # --- THIS IS NOW FIXED ---
         # The code will now save the model file, fixing your EOFError.
-        joblib.dump(trained_model, 'student_behavior_model.pkl')
-        print("\nModel saved as 'student_behavior_model.pkl'.")
+        joblib.dump(trained_model, 'drowning_model.pkl')
+        print("\nModel saved as 'drowning_model.pkl'.")
         print("You can now run your 'run_live_detection.py' script.")

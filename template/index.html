@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Behavior Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <div class="navbar">
+        <div class="logo">Student Behavior Analysis</div>
+        <div class="controls">
+            <button class="btn btn-start">Start Detection</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="video-panel">
+                <div class="panel-header">
+                    <span class="live-dot"></span>Live
+                </div>
+                <div class="video-feed">
+                    <img src="{{ url_for('video_feed') }}" width="100%">
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="panel" id="detection-view">
+                <div class="panel-header">Detection View</div>
+                <div class="panel-content">
+                    <div class="event-counter">
+                        <span class="event-label">Events:</span>
+                        <span class="event-count">0</span>
+                    </div>
+                    <p>Awaiting high-risk detection...</p>
+                </div>
+            </div>
+
+            <div class="panel" id="log-view">
+                <div class="panel-header">Detection Log</div>
+                <div class="panel-content">
+                    <p>No events logged yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
